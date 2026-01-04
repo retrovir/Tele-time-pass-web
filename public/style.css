@@ -1,0 +1,41 @@
+body {
+  background: #0f172a;
+  font-family: Arial, sans-serif;
+  color: white;
+  margin: 0;
+}
+
+.container {
+  max-width: 480px;
+  margin: auto;
+  padding: 20px;
+}
+
+.card {
+  background: #020617;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 0 20px #000;
+}
+
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: none;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.chat {
+  height: 320px;
+  overflow-y: auto;
+  background: #020617;
+  padding: 10px;
+  border-radius: 8px;
+}
