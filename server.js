@@ -5,6 +5,7 @@ import TelegramBot from "node-telegram-bot-api"
 import dotenv from "dotenv"
 import multer from "multer"
 import fs from "fs"
+import mime from "mime-types"
 
 dotenv.config()
 
@@ -19,15 +20,11 @@ const HISTORY_FILE = "./history.json"
 app.use(express.static("public"))
 app.use(express.json())
 
-/* ---------- HISTORY UTILS ---------- */
+/* ---------- HISTORY ---------- */
 function saveMessage(from, text) {
-  const history = JSON.parse(fs.readFileSync(HISTORY_FILE))
-  history.push({
-    from,
-    text,
-    time: new Date().toLocaleString()
-  })
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2))
+  const h = JSON.parse(fs.readFileSync(HISTORY_FILE))
+  h.push({ from, text, time: new Date().toLocaleString() })
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(h, null, 2))
 }
 
 /* ---------- LOGIN ---------- */
@@ -37,19 +34,39 @@ app.post("/login", (req, res) => {
 
 /* ---------- FILE UPLOAD ---------- */
 app.post("/upload", upload.single("file"), async (req, res) => {
-  await bot.sendDocument(
-    process.env.CHAT_ID,
-    fs.createReadStream(req.file.path)
-  )
-  fs.unlinkSync(req.file.path)
-  res.json({ ok: true })
+  const filePath = req.file.path
+  const name = req.file.originalname
+  const type = mime.lookup(name)
+
+  try {
+    if (type && type.startsWith("image/")) {
+      await bot.sendPhoto(
+        process.env.CHAT_ID,
+        fs.createReadStream(filePath),
+        { caption: name }
+      )
+    } else {
+      await bot.sendDocument(
+        process.env.CHAT_ID,
+        fs.createReadStream(filePath),
+        {},
+        { filename: name }
+      )
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ ok: false })
+  } finally {
+    fs.unlinkSync(filePath)
+  }
 })
 
 /* ---------- SOCKET ---------- */
 io.on("connection", socket => {
 
-  socket.on("typing", async () => {
-    await bot.sendChatAction(process.env.CHAT_ID, "typing")
+  socket.on("typing", () => {
+    bot.sendChatAction(process.env.CHAT_ID, "typing")
   })
 
   socket.on("web-msg", msg => {
@@ -76,21 +93,25 @@ bot.on("message", msg => {
       })
     })
   }
+
+  if (msg.photo) {
+    const photo = msg.photo[msg.photo.length - 1]
+    bot.getFileLink(photo.file_id).then(link => {
+      io.emit("tg-image", link)
+    })
+  }
 })
 
-/* ---------- /history COMMAND ---------- */
+/* ---------- /history ---------- */
 bot.onText(/\/history/, () => {
-  const history = JSON.parse(fs.readFileSync(HISTORY_FILE))
+  const h = JSON.parse(fs.readFileSync(HISTORY_FILE))
     .slice(-20)
     .map(m => `[${m.time}] ${m.from}: ${m.text}`)
     .join("\n")
 
-  bot.sendMessage(
-    process.env.CHAT_ID,
-    history || "No history yet"
-  )
+  bot.sendMessage(process.env.CHAT_ID, h || "No history")
 })
 
 server.listen(process.env.PORT, () =>
-  console.log("Server running on port", process.env.PORT)
+  console.log("Server running")
 )
