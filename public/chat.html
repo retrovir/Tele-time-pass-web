@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Telegram Bridge</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h3>💬 Telegram Chat</h3>
+
+    <div class="chat" id="chat"></div>
+
+    <input id="msg" placeholder="Type message">
+    <button onclick="send()">Send</button>
+
+    <input type="file" id="file">
+    <button onclick="upload()">Send File</button>
+  </div>
+</div>
+
+<script>
+const socket = io()
+const chat = document.getElementById("chat")
+const msg = document.getElementById("msg")
+
+msg.addEventListener("input", () => {
+  socket.emit("typing")
+})
+
+function send() {
+  socket.emit("web-msg", msg.value)
+  chat.innerHTML += `<p>🟢 You: ${msg.value}</p>`
+  msg.value = ""
+}
+
+socket.on("tg-msg", t => {
+  chat.innerHTML += `<p>🔵 TG: ${t}</p>`
+})
+
+socket.on("tg-file", f => {
+  chat.innerHTML += `<p>📎 <a href="${f.url}" target="_blank">${f.name}</a></p>`
+})
+
+async function upload() {
+  const fd = new FormData()
+  fd.append("file", file.files[0])
+  await fetch("/upload", { method:"POST", body:fd })
+  alert("File sent to Telegram")
+}
+</script>
+</body>
+</html>
