@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Telegram Bridge</title>
+  <title>Chat</title>
   <link rel="stylesheet" href="style.css">
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 <div class="container">
   <div class="card">
-    <h3>💬 Telegram Chat</h3>
 
     <div class="chat" id="chat"></div>
 
@@ -16,7 +15,9 @@
     <button onclick="send()">Send</button>
 
     <input type="file" id="file">
+    <progress id="progress" value="0" max="100" style="display:none"></progress>
     <button onclick="upload()">Send File</button>
+
   </div>
 </div>
 
@@ -24,30 +25,66 @@
 const socket = io()
 const chat = document.getElementById("chat")
 const msg = document.getElementById("msg")
+const progress = document.getElementById("progress")
 
 msg.addEventListener("input", () => {
   socket.emit("typing")
 })
 
+function addMessage(side, text) {
+  const d = document.createElement("div")
+  d.className = "msg " + side
+  d.innerText = text
+  chat.appendChild(d)
+  chat.scrollTop = chat.scrollHeight
+}
+
 function send() {
+  if (!msg.value) return
   socket.emit("web-msg", msg.value)
-  chat.innerHTML += `<p>🟢 You: ${msg.value}</p>`
+  addMessage("me", msg.value)
   msg.value = ""
 }
 
-socket.on("tg-msg", t => {
-  chat.innerHTML += `<p>🔵 TG: ${t}</p>`
-})
+socket.on("tg-msg", t => addMessage("tg", t))
 
 socket.on("tg-file", f => {
-  chat.innerHTML += `<p>📎 <a href="${f.url}" target="_blank">${f.name}</a></p>`
+  const d = document.createElement("div")
+  d.className = "msg tg"
+  d.innerHTML = `📎 <a href="${f.url}" download target="_blank">${f.name}</a>`
+  chat.appendChild(d)
 })
 
-async function upload() {
+socket.on("tg-image", url => {
+  const d = document.createElement("div")
+  d.className = "msg tg"
+  d.innerHTML = `<img src="${url}" style="max-width:100%">`
+  chat.appendChild(d)
+})
+
+function upload() {
+  const f = document.getElementById("file").files[0]
+  if (!f) return
+
+  const xhr = new XMLHttpRequest()
   const fd = new FormData()
-  fd.append("file", file.files[0])
-  await fetch("/upload", { method:"POST", body:fd })
-  alert("File sent to Telegram")
+
+  fd.append("file", f)
+  xhr.open("POST", "/upload")
+
+  progress.style.display = "block"
+
+  xhr.upload.onprogress = e => {
+    progress.value = (e.loaded / e.total) * 100
+  }
+
+  xhr.onload = () => {
+    progress.style.display = "none"
+    progress.value = 0
+    addMessage("me", "📎 File sent")
+  }
+
+  xhr.send(fd)
 }
 </script>
 </body>
